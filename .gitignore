@@ -1,0 +1,17 @@
+# Workshop config with the access key: never commit it
+micai_mlops_config.json
+*config*.json
+!presenter/micai_mlops_config.template.json
+!data/wine-quality/*.json
+
+# Local MLflow stores and outputs
+mlruns/
+mlflow.db
+*.png
+!docs/*.png
+
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+venv*/

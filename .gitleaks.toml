@@ -1,0 +1,10 @@
+# Secret scanning (https://github.com/gitleaks/gitleaks). The default rules already
+# include Databricks tokens (dapi...); this file only adds a workshop-specific rule.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "workshop-config-token"
+description = "Databricks token pasted into a workshop config file"
+regex = '''"databricks_token"\s*:\s*"dapi[0-9a-f]{32}(-\d)?"'''
+keywords = ["databricks_token"]

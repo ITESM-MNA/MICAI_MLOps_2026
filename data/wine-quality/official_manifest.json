@@ -1,0 +1,62 @@
+{
+  "v1_clean_drop": {
+    "rows": 3126,
+    "columns": [
+      "row_id",
+      "fixed acidity",
+      "volatile acidity",
+      "citric acid",
+      "residual sugar",
+      "chlorides",
+      "free sulfur dioxide",
+      "total sulfur dioxide",
+      "density",
+      "pH",
+      "sulphates",
+      "alcohol",
+      "quality"
+    ],
+    "sha256": "7984ebbfddcc2d767f2dea65a1767d6bec9458d65af27aca07c419b87c206d34",
+    "description": "Strategy A: rows with any invalid feature dropped (real measurements only)"
+  },
+  "v2_clean_impute": {
+    "rows": 4245,
+    "columns": [
+      "row_id",
+      "fixed acidity",
+      "volatile acidity",
+      "citric acid",
+      "residual sugar",
+      "chlorides",
+      "free sulfur dioxide",
+      "total sulfur dioxide",
+      "density",
+      "pH",
+      "sulphates",
+      "alcohol",
+      "quality"
+    ],
+    "sha256": "85c8c3bfecae30fe842174866c200fd4f1325b01bdfa3485464f2a811f4c270e",
+    "description": "Strategy B: invalid features imputed with the column median"
+  },
+  "holdout": {
+    "rows": 626,
+    "columns": [
+      "row_id",
+      "fixed acidity",
+      "volatile acidity",
+      "citric acid",
+      "residual sugar",
+      "chlorides",
+      "free sulfur dioxide",
+      "total sulfur dioxide",
+      "density",
+      "pH",
+      "sulphates",
+      "alcohol",
+      "quality"
+    ],
+    "sha256": "e547c48bd7d6be9d5e13ad276e9487ba7505e2385826c41359c2a49dbb561247",
+    "description": "Fixed evaluation set: 20% of v1, stratified on the label, never used for training"
+  }
+}

@@ -1,0 +1,4 @@
+# Installed by the setup cell in Google Colab. Colab already provides pandas, numpy,
+# scikit-learn, scipy, matplotlib and seaborn; only what is missing is installed here.
+mlflow-skinny==3.17.2
+skops==0.16.0
