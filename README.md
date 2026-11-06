@@ -77,6 +77,7 @@ folder and type the path to your `config.json` in **CONFIG_LINK**. To run all of
 
 ```
 notebooks/               00 (setup, run once) and the three workshop notebooks
+LICENSE                  MIT License (code and docs); the data keeps CC BY 4.0
 docs/                    SETUP_YOUR_OWN_MLFLOW.md: run the notebooks on your own Databricks
 config.template.json     config fields; copy to config.json (ignored by Git) and fill in
 src/micai_mlops/         shared code: setup, data contract, cleaning, official datasets, splits, models, workspace
@@ -97,9 +98,16 @@ independently on their own Databricks MLflow.
 
 - **Dataset:** P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis (2009). *Modeling wine preferences by data
   mining from physicochemical properties.* Decision Support Systems 47(4), 547–553. Obtained from the UCI Machine
-  Learning Repository. `modified.csv` is a deliberately corrupted copy prepared for this workshop.
+  Learning Repository (CC BY 4.0). `modified.csv` is a deliberately corrupted copy prepared for this workshop.
 - **Tools:** Python, pandas, scikit-learn, SciPy, MLflow, Databricks and Google Colab.
 
 **Declaration on the use of AI.** These materials were developed with the assistance of generative AI (Anthropic's
 Claude, model Claude Opus 5.5), used to draft and review code, explanations and documentation. The workshop instructors
 reviewed and validated all content and are responsible for it.
+
+## License
+
+The code and documentation are released under the [MIT License](LICENSE). The data in `data/wine-quality/` is
+derived from the UCI *Wine Quality* dataset and keeps its own license,
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) ([doi:10.24432/C56S3T](https://doi.org/10.24432/C56S3T)):
+credit the dataset authors (see Credits) when you reuse it.

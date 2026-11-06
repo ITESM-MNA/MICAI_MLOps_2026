@@ -10,3 +10,7 @@
 
 Source: P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis (2009). *Modeling wine preferences by data mining
 from physicochemical properties.* Decision Support Systems 47(4), 547–553. UCI Machine Learning Repository.
+
+**License:** these files are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+([doi:10.24432/C56S3T](https://doi.org/10.24432/C56S3T)), not under the repository's MIT License. `modified.csv`
+and `official/` are modified versions prepared for this workshop.
