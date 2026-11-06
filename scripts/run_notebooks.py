@@ -13,7 +13,7 @@ import nbformat
 from nbclient import NotebookClient
 
 REPO = Path(__file__).resolve().parents[1]
-NOTEBOOKS = ["01_data_quality_eda_versioning.ipynb", "02_training_tracking.ipynb", "03_monitoring_drift.ipynb"]
+NOTEBOOKS = ["00_setup_your_workspace.ipynb", "01_data_quality_eda_versioning.ipynb", "02_training_tracking.ipynb", "03_monitoring_drift.ipynb"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--keep-outputs", help="folder where executed notebooks are written")

@@ -1,11 +1,16 @@
 """The official dataset versions used by notebooks 02 and 03.
 
-The presenter publishes them once to the experiment `00_official_datasets`
-(script presenter/publish_official_datasets.py). The notebooks download the
-files of that exact run and check each one against the fingerprints stored in
-`data/wine-quality/official_manifest.json`. If MLflow is not reachable or a
-file does not match, the same files are rebuilt locally from the raw data with
-the canonical cleaning code; the fingerprint proves they are identical.
+They are published once to the experiment `00_official_datasets`: by notebook
+00 (or scripts/setup_workspace.py) when you run on your own Databricks, or by
+the instructor during a workshop. The notebooks download the files of that
+run and check each one against the fingerprints stored in
+`data/wine-quality/official_manifest.json`.
+
+A copy of the same files ships with the repository in
+`data/wine-quality/official/`. It is used when MLflow is not reachable or no
+official run exists yet; as a last resort the files are rebuilt from the raw
+data with the canonical cleaning code. The fingerprint proves all three
+sources are identical.
 """
 
 import json
@@ -23,6 +28,7 @@ OFFICIAL_VERSIONS = {
     "holdout": "Fixed evaluation set: 20% of v1, stratified on the label, never used for training",
 }
 MANIFEST_NAME = "official_manifest.json"
+REPO_COPY_DIR = "official"
 ARTIFACT_DIR = "official_datasets"
 
 
@@ -53,6 +59,17 @@ def make_manifest(datasets):
     }
 
 
+def read_repo_copy(data_dir):
+    """The official datasets stored in the repository, checked against the manifest."""
+    folder = Path(data_dir) / REPO_COPY_DIR
+    manifest = read_manifest(data_dir)
+    datasets = {name: read_dataset(folder / f"{name}.csv") for name in OFFICIAL_VERSIONS}
+    bad = [n for n, df in datasets.items() if fingerprint(df) != manifest[n]["sha256"]]
+    if bad:
+        raise ValueError(f"repository copy does not match the manifest: {bad}")
+    return datasets
+
+
 def _download_from_run(run_id, dst):
     import mlflow
     path = mlflow.artifacts.download_artifacts(run_id=run_id, artifact_path=ARTIFACT_DIR, dst_path=dst)
@@ -79,9 +96,13 @@ def load_official(ws, verbose=True):
                 print(f"⚠️  Fingerprint mismatch for {bad}; rebuilding the official files locally.")
             datasets = None
     if datasets is None:
-        rebuilt, _ = build_official(ws.data_dir)
-        datasets = {n: read_dataset_from_frame(df) for n, df in rebuilt.items()}
-        source = "rebuilt locally from data/wine-quality/modified.csv"
+        try:
+            datasets = read_repo_copy(ws.data_dir)
+            source = "the repository copy (data/wine-quality/official/)"
+        except Exception:
+            rebuilt, _ = build_official(ws.data_dir)
+            datasets = {n: read_dataset_from_frame(df) for n, df in rebuilt.items()}
+            source = "rebuilt locally from data/wine-quality/modified.csv"
     rows = []
     for name, df in datasets.items():
         ok = fingerprint(df) == manifest[name]["sha256"]

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "workshop": "MICAI 2026 MLOps Workshop",
+  "databricks_host": "https://<your-workspace>.cloud.databricks.com",
+  "databricks_token": "<your personal access token: keep it only in your local config.json>",
+  "experiment_root": "/Shared/MICAI_MLOps_2026",
+  "official_data_run_id": "",
+  "expires": "<YYYY-MM-DD: the day your token expires, or leave empty>"
+}

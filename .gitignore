@@ -1,6 +1,9 @@
-# Workshop config with the access key: never commit it
+# Configs with an access key: never commit them.
+# Copy config.template.json to config.json and edit only the copy.
+config.json
 micai_mlops_config.json
 *config*.json
+!config.template.json
 !presenter/micai_mlops_config.template.json
 !data/wine-quality/*.json
 

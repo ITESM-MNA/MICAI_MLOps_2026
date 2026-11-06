@@ -1,9 +1,16 @@
-"""Workshop setup: config download, MLflow connection and safe local fallback.
+"""Notebook setup: read the config, connect to MLflow, safe local fallback.
 
-Participants call `setup_workshop(config_link, nickname, notebook)` from the
-first cell of each notebook. The function never prints or logs the token.
-If anything fails, it switches to a local MLflow store so the notebook still
-runs end to end; only the shared leaderboard is missing in that case.
+`setup_workshop(config_link, nickname, notebook)` runs in the first cell of
+each notebook. The config (Databricks address, access token, experiment
+folder) comes from, in this order:
+
+1. the CONFIG_LINK field: a web link (workshop), a Google Drive link or a file path;
+2. the environment variable MICAI_CONFIG (a link or a file path);
+3. the Colab Secret MICAI_CONFIG, holding the JSON text (running on your own);
+4. a prompt; pressing Enter works offline.
+
+The token is never printed or logged. If anything fails, the notebook
+switches to a local MLflow store and still runs end to end.
 """
 
 import json
@@ -23,7 +30,8 @@ EXPERIMENTS = {
     "training": "02_training",
     "monitoring": "03_drift_monitoring",
 }
-NOTEBOOK_EXPERIMENT = {"01": "cleaning", "02": "training", "03": "monitoring"}
+NOTEBOOK_EXPERIMENT = {"00": "official", "01": "cleaning", "02": "training", "03": "monitoring"}
+COLAB_SECRET = "MICAI_CONFIG"
 SCHEMA_VERSION = 1
 
 _DRIVE_PATTERNS = [
@@ -120,6 +128,33 @@ def fetch_config(link, timeout=20):
                          "(is it shared as 'Anyone with the link'?)") from None
 
 
+def read_colab_secret(name=COLAB_SECRET):
+    """Return the config stored as a Colab Secret, or None when not in Colab / not set.
+
+    The secret's value is the whole JSON text of the config (or a link/path to it)."""
+    try:
+        from google.colab import userdata
+    except ImportError:
+        return None
+    try:
+        value = userdata.get(name)
+    except Exception as exc:   # SecretNotFoundError, NotebookAccessError, ...
+        kind = type(exc).__name__
+        if "NotFound" in kind:
+            return None
+        raise PermissionError(f"the Colab Secret {name} exists but this notebook has no access to it: "
+                              "open the key icon on the left and switch on 'Notebook access'") from None
+    value = (value or "").strip()
+    if not value:
+        return None
+    if value.startswith("{"):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            raise ValueError(f"the Colab Secret {name} is not valid JSON") from None
+    return fetch_config(value)
+
+
 def check_config(cfg):
     required = ["schema_version", "databricks_host", "databricks_token", "experiment_root"]
     missing = [k for k in required if not cfg.get(k)]
@@ -127,9 +162,17 @@ def check_config(cfg):
         raise ValueError(f"config is missing {missing}")
     if int(cfg["schema_version"]) != SCHEMA_VERSION:
         raise ValueError(f"config schema_version {cfg['schema_version']} is not {SCHEMA_VERSION}")
-    expires = cfg.get("expires")
-    if expires and date.fromisoformat(expires) < date.today():
-        raise ValueError(f"the workshop config expired on {expires}")
+    placeholders = [k for k in ("databricks_host", "databricks_token") if str(cfg[k]).strip().startswith(("<", "https://<"))]
+    if placeholders:
+        raise ValueError(f"fill in {placeholders} in your config (they still hold the template text)")
+    expires = (cfg.get("expires") or "").strip()
+    if expires:
+        try:
+            expiry = date.fromisoformat(expires)
+        except ValueError:
+            raise ValueError("'expires' must be a date like 2027-02-01, or empty") from None
+        if expiry < date.today():
+            raise ValueError(f"the config expired on {expires} (create a new token and update it)")
 
 
 def _quiet_mlflow():
@@ -197,18 +240,43 @@ def _connect_databricks(cfg, time_limit=60):
     return _with_time_limit(lambda: _ensure_experiments(cfg), time_limit)
 
 
+def _make_folder(cfg):
+    """Create the workspace folder that holds the experiments (no error if it exists)."""
+    from databricks.sdk import WorkspaceClient
+    WorkspaceClient(host=cfg["databricks_host"].rstrip("/"), token=cfg["databricks_token"],
+                    auth_type="pat").workspace.mkdirs(cfg["experiment_root"])
+
+
 def _ensure_experiments(cfg):
     import mlflow
     ids = {}
+    folder_checked = False
     for key in EXPERIMENTS:
         name = f"{cfg['experiment_root']}/{EXPERIMENTS[key]}"
         exp = mlflow.get_experiment_by_name(name)
         if exp is None:
+            if not folder_checked:
+                try:
+                    _make_folder(cfg)
+                except Exception as exc:
+                    raise PermissionError(f"could not create the folder {cfg['experiment_root']} "
+                                          f"({type(exc).__name__}); create it in the Databricks UI "
+                                          "or check experiment_root in the config") from None
+                folder_checked = True
             exp_id = mlflow.create_experiment(name)
         else:
             exp_id = exp.experiment_id
         ids[key] = exp_id
     return ids
+
+
+def find_official_run(experiment_root):
+    """Latest run tagged role=official in the official-datasets experiment (or None)."""
+    import mlflow
+    runs = mlflow.search_runs(experiment_names=[f"{experiment_root}/{EXPERIMENTS['official']}"],
+                              filter_string="tags.role = 'official' AND attributes.status = 'FINISHED'",
+                              order_by=["attributes.start_time DESC"], max_results=1)
+    return None if runs.empty else runs.iloc[0].run_id
 
 
 def _connect_local(repo_dir):
@@ -230,7 +298,7 @@ def _connect_local(repo_dir):
 # --------------------------------------------------------------------------- main entry
 
 def setup_workshop(config_link="", nickname="", notebook="01", repo_dir="."):
-    """Connect this notebook to the shared MLflow experiments (or fall back to local)."""
+    """Connect this notebook to the MLflow experiments on Databricks (or fall back to local)."""
     _quiet_mlflow()
     import mlflow
 
@@ -245,33 +313,50 @@ def setup_workshop(config_link="", nickname="", notebook="01", repo_dir="."):
     _say(True, f"Nickname: {alias}")
 
     link = (config_link or "").strip() or os.environ.get("MICAI_CONFIG", "").strip()
-    if not link and not os.environ.get("MICAI_OFFLINE"):
-        link = _ask("Paste the config link from the slide (or press Enter to work offline): ").strip()
+    cfg, source = None, None
+    if not link:
+        try:
+            cfg = read_colab_secret()
+            source = f"Colab Secret {COLAB_SECRET}" if cfg else None
+        except Exception as exc:
+            _say(False, str(exc))
+    if not link and cfg is None and not os.environ.get("MICAI_OFFLINE"):
+        link = _ask("Paste your config link or file path (or press Enter to work offline): ").strip()
 
     ws = None
-    if link:
+    if link or cfg is not None:
         try:
-            cfg = fetch_config(link)
+            if cfg is None:
+                cfg = fetch_config(link)
+                source = "the config file" if os.path.exists(link) else "the config link"
             check_config(cfg)
-            _say(True, "Config downloaded and checked")
+            _say(True, f"Config read from {source} and checked")
             ids = _connect_databricks(cfg)
+            official_run_id = cfg.get("official_data_run_id") or None
+            if not official_run_id:
+                try:
+                    official_run_id = _with_time_limit(lambda: find_official_run(cfg["experiment_root"]), 30)
+                except Exception:
+                    official_run_id = None
             ws = Workshop(mode="databricks", alias=alias, notebook=notebook, repo_dir=repo_dir,
-                          experiment_root=cfg["experiment_root"],
-                          official_run_id=cfg.get("official_data_run_id") or None,
+                          experiment_root=cfg["experiment_root"], official_run_id=official_run_id,
                           host=cfg["databricks_host"].rstrip("/"), experiment_ids=ids)
-            _say(True, "Connected to the shared MLflow server on Databricks")
+            _say(True, f"Connected to MLflow on Databricks ({cfg['experiment_root']})")
+            if notebook in ("02", "03") and not official_run_id:
+                _say(False, "No official datasets found in MLflow: run notebook 00 once to publish them. "
+                            "For now the repository copy is used.")
         except Exception as exc:     # never stop the workshop because of the network
             reason = str(exc).split("\n")[0][:160]
             for var in ("DATABRICKS_HOST", "DATABRICKS_TOKEN", "DATABRICKS_AUTH_TYPE"):
                 os.environ.pop(var, None)
-            _say(False, f"Could not use the shared MLflow server: {reason}")
+            _say(False, f"Could not use the MLflow server on Databricks: {reason}")
 
     if ws is None:
         ids, store = _connect_local(repo_dir)
         ws = Workshop(mode="local", alias=alias, notebook=notebook, repo_dir=repo_dir,
                       experiment_root=EXPERIMENT_ROOT_DEFAULT, experiment_ids=ids)
         _say(True, f"Working with a LOCAL MLflow store ({store}). Everything runs; "
-                   "your runs just won't appear on the shared leaderboard.")
+                   "your runs just won't be saved on Databricks.")
 
     mlflow.set_experiment(ws.experiment(NOTEBOOK_EXPERIMENT[notebook]))
     if ws.online:
